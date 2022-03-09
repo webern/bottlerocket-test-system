@@ -36,6 +36,11 @@ pub(crate) struct RunAwsEcs {
     #[structopt(long)]
     keep_running: bool,
 
+    /// If `use-public-subnets` is provided a public subnet id will be used instead of
+    /// private subnets (default).
+    #[structopt(long)]
+    use_public_subnets: bool,
+
     /// A specific task definition that the ecs test agent will use. If one isn't provided,
     /// a simple default task will be created and used.
     #[structopt(long)]
@@ -296,6 +301,14 @@ impl RunAwsEcs {
         Ok(())
     }
 
+    fn subnet_key(&self) -> String {
+        if self.use_public_subnets {
+            "publicSubnetId".to_string()
+        } else {
+            "privateSubnetId".to_string()
+        }
+    }
+
     fn ecs_resource(
         &self,
         name: &str,
@@ -350,7 +363,7 @@ impl RunAwsEcs {
                 .iam_instance_profile_arn
                 .clone()
                 .unwrap_or_else(|| format!("${{{}.iamInstanceProfileArn}}", cluster_resource_name)),
-            subnet_id: format!("${{{}.privateSubnetId}}", cluster_resource_name),
+            subnet_id: format!("${{{}.{}}}", cluster_resource_name, self.subnet_key()),
             cluster_type: ClusterType::Ecs,
             ..Default::default()
         }
@@ -412,7 +425,7 @@ impl RunAwsEcs {
                             region: Some(format!("${{{}.region}}", cluster_resource_name)),
                             cluster_name: format!("${{{}.clusterName}}", cluster_resource_name),
                             task_count: self.task_count,
-                            subnet: format!("${{{}.privateSubnetId}}", cluster_resource_name),
+                            subnet: format!("${{{}.{}}}", cluster_resource_name, self.subnet_key()),
                             task_definition_name_and_revision: self
                                 .task_definition_name_and_revision
                                 .clone(),
