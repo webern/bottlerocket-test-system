@@ -236,6 +236,8 @@ impl Create for VMCreator {
         // Import OVA and create a template out of it
         info!("Importing OVA and creating a VM template out of it");
         let vm_template_name = format!("{}-node-vmtemplate", vsphere_cluster.name);
+        resources = Resources::Remaining;
+        memo.vm_template = vm_template_name.to_owned();
         let import_ova_output = Command::new("govc")
             .arg("import.ova")
             .arg("-options=/local/ova.importspec")
@@ -253,7 +255,6 @@ impl Create for VMCreator {
                 ),
             ));
         }
-        resources = Resources::Remaining;
         let markastemplate_output = Command::new("govc")
             .arg("vm.markastemplate")
             .arg(&vm_template_name)
@@ -268,7 +269,6 @@ impl Create for VMCreator {
                 ),
             ));
         }
-        memo.vm_template = vm_template_name.to_owned();
 
         let vm_count = spec.configuration.vm_count.unwrap_or(DEFAULT_VM_COUNT);
         // Generate SSM activation codes and IDs

@@ -31,7 +31,7 @@ fetch:
 	cargo fetch --locked
 
 images: fetch controller sonobuoy-test-agent ec2-resource-agent eks-resource-agent ecs-resource-agent \
-	migration-test-agent vsphere-vm-resource-agent
+	migration-test-agent vsphere-vm-resource-agent ecs-test-agent
 
 # Builds, Lints and Tests the Rust workspace
 build: fetch

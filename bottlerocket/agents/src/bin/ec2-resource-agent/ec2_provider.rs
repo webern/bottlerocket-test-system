@@ -106,7 +106,7 @@ impl Create for Ec2Creator {
 
         memo.aws_secret_name = spec.secrets.get(AWS_CREDENTIALS_SECRET_NAME).cloned();
         memo.assume_role = spec.configuration.assume_role.clone();
-
+        info!("Assuming Role {:?}", spec.configuration.assume_role.clone());
         let shared_config = aws_resource_config(
             client,
             &spec.secrets.get(AWS_CREDENTIALS_SECRET_NAME),
