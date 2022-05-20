@@ -1,6 +1,6 @@
 use super::{
     error, DeleteEvent, DockerConfigJson, ImageConfig, ResourceState, Result, SelectionParams,
-    Status,
+    StatusSnapshot,
 };
 use crate::clients::{CrdClient, ResourceClient, TestClient};
 use crate::constants::{LABEL_COMPONENT, TESTSYS_RESULTS_FILE};
@@ -305,7 +305,7 @@ impl TestManager {
         &self,
         selection_params: &SelectionParams,
         include_controller: bool,
-    ) -> Result<Status> {
+    ) -> Result<StatusSnapshot> {
         let controller_status = if include_controller {
             let pod_api: Api<Pod> = self.namespaced_api();
             let pods = pod_api
@@ -328,7 +328,7 @@ impl TestManager {
         };
         let crds = self.list(selection_params).await?;
 
-        Ok(Status::new(controller_status, crds))
+        Ok(StatusSnapshot::new(controller_status, crds))
     }
 
     /// Retrieve the logs of a test.
