@@ -15,9 +15,11 @@ TOOLS_IMAGE ?= public.ecr.aws/bottlerocket/bottlerocket-test-tools:$(BOTTLEROCKE
 
 IMAGES = controller sonobuoy-test-agent ec2-resource-agent eks-resource-agent ecs-resource-agent \
 	migration-test-agent vsphere-vm-resource-agent ecs-test-agent
+IMAGES_PUBLISH_REPO_BASE ?= ""
 
 .PHONY: build sdk-openssl example-test-agent example-resource-agent \
-	images fetch integ-test show-variables cargo-deny tools $(IMAGES)
+	images tag-images publish-images fetch integ-test show-variables cargo-deny tools \
+	$(IMAGES)
 
 export DOCKER_BUILDKIT=1
 export CARGO_HOME = $(TOP)/.cargo
@@ -36,6 +38,28 @@ fetch:
 	cargo fetch --locked
 
 images: fetch $(IMAGES)
+
+# Required environment variables!
+# IMAGES_PUBLISH_VERSION: This is the version tag that will be given to all of the images, e.g. v0.1.0.define
+# IMAGES_PUBLISH_REPO_BASE: This is the part of the repo that is before the slash. It is not required. If empty then the
+# images will be tagged like this: `controller:version`. If IMAGES_PUBLISH_REPO_BASE is given, e.g. `my-repo-base.com`,
+# then the image will be tagged like this: `my-repo-base.com/controller:version`
+tag-images: images
+ifndef IMAGES_PUBLISH_VERSION
+	$(error IMAGES_PUBLISH_VERSION environment variable is undefined. See Makefile for details.)
+endif
+	for image in "$IMAGES[@]"
+	do
+		echo $image
+	done
+
+
+define-image-tag:
+ifndef IMAGES_PUBLISH_VERSION
+	$(error IMAGES_PUBLISH_VERSION environment variable is undefined. See Makefile for details.)
+endif
+	if [ -z "$(IMAGES_PUBLISH_REPO_BASE)" ]; then
+  		export IMAGE_TAG=
 
 # Builds, Lints and Tests the Rust workspace
 build: fetch
