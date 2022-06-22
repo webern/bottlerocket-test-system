@@ -52,7 +52,7 @@ USER root
 RUN mkdir -p /usr/share/licenses/eksctl && \
     chown -R builder:builder /usr/share/licenses/eksctl
 
-ARG EKSCTL_VERSION=0.96.0
+ARG EKSCTL_VERSION=0.102.0
 ARG EKSCTL_SOURCE_URL="https://github.com/weaveworks/eksctl/archive/refs/tags/v${EKSCTL_VERSION}.tar.gz"
 
 ARG GOARCH
@@ -95,7 +95,7 @@ USER root
 RUN mkdir -p /usr/share/licenses/kubernetes && \
     chown -R builder:builder /usr/share/licenses/kubernetes
 
-ARG K8S_VERSION=1.21.6
+ARG K8S_VERSION=1.22.11
 ARG K8S_SOURCE_URL="https://github.com/kubernetes/kubernetes/archive/refs/tags/v${K8S_VERSION}.tar.gz"
 
 ARG GOARCH
@@ -132,7 +132,7 @@ USER root
 RUN mkdir -p /usr/share/licenses/sonobuoy && \
     chown -R builder:builder /usr/share/licenses/sonobuoy
 
-ARG SONOBUOY_VERSION=0.56.4
+ARG SONOBUOY_VERSION=0.56.7
 ARG SONOBUOY_SOURCE_URL="https://github.com/vmware-tanzu/sonobuoy/archive/refs/tags/v${SONOBUOY_VERSION}.tar.gz"
 
 ARG GOARCH
