@@ -15,20 +15,36 @@ This is called an *external cluster*.
 🚧 👷
 
 The project is in active pre-release development.
-Eventually we plan to publish container images and other aspects of the system, but we aren't quite there yet.
+We have begun publishing container images, but things aren't quite stable yet.
 We also are not quite ready for external contributions, but we are happy to respond to issues and discussions.
 
-## Quickstart
+### Versioning
 
-Since nothing has been published yet, you will have to build everything!
-You will need `docker`, `cargo`, `make`, `kind`, and the `aws` CLI for this.
-Caution: if you follow these instructions, you will create an EKS cluster and EC2 instances!
+We are using the same semantic version to represent all container images and crates.
+Because we are iterating rapidly, we have started with [v0.0.1].
+The published containers are tagged with the same version number that the git repo is tagged with.
 
-Set the `TESTSYS_DIR` variable to point to the directory in which you have cloned the project.
-For example:
+[v0.0.1]: https://github.com/bottlerocket-os/bottlerocket-test-system/tree/v0.0.1
+
+## Building and Running
+
+In this example, we will use the `example-test-agent`, `example-resource-agent`, `controller` and `cli`.
+This demonstrates the generic basics of the system without delving into the specifics of the Bottlerocket test agents.
+To see how to use the system to test Bottlerocket images, check out `TESTING.md` in the [Bottlerocket GitHub repo].
+
+[Bottlerocket GitHub repo]:  https://github.com/bottlerocket-os/bottlerocket
+
+After cloning, follow these instructions from the root of the git repo:
+
+First we will build and tag the containers we need:
 
 ```shell
-export TESTSYS_DIR="${HOME}/repos/bottlerocket-test-system"
+make controller example-test-agent example-resource-agent
+```
+
+<!--
+```shell
+export TESTSYS_DIR="$(pwd)"
 ```
 
 Set a few more variables.
@@ -128,6 +144,7 @@ testsys run aws-k8s \
   --ami "${AMI_ID}" \
   --ec2-provider-image "ec2-resource-agent:eks"
 ```
+-->
 
 ## Development
 
@@ -140,14 +157,14 @@ It includes the CRDs and clients for interacting with them.
 
 - `agent` contains libraries with the traits and harnesses for creating test and resource agents.
 
-- `bottlerocket-agents` contains the implementations of the test and resource traits that we use for Bottlerocket testing.
+- `bottlerocket` contains the implementations of the test and resource traits that we use for Bottlerocket testing.
 
-- `testsys` contains the command line interface for installing the system and running tests.
+- `cli` a CLI that can be used to install the controller, run tests, etc.
 
-The `model`, `agents` and `controller` crates are general-purpose, and define the TestSys system.
-It is possible to use these libraries and controller to for testing purposes other than Bottlerocket.
+The `model`, `agents`, `controller` and `cli` crates are general-purpose, and define the TestSys system.
+It is possible to use these for testing purposes other than Bottlerocket.
 
-The `testsys` CLI and `bottlerocket-agents` crates are more specialized to Bottlerocket's testing use cases.
+The `bottlerocket` and `tools` directories are more specialized to Bottlerocket's testing use cases.
 
 ## Security
 
