@@ -1,0 +1,146 @@
+apiVersion: testsys.system/v1
+kind: Test
+metadata:
+  name: <CLUSTER-NAME>-test-1-initial
+  namespace: testsys
+spec:
+  agent:
+    name: sonobuoy-test-agent
+    image: <SONOBUOY-TEST-AGENT-IMAGE-URI>
+    keepRunning: true
+    configuration:
+      region: ${<CLUSTER-NAME>.region}
+      subnets: ${<CLUSTER-NAME>.publicSubnetIds}
+      assumeRole: <ASSUME-ROLE>
+      kubeconfigBase64: ${<CLUSTER-NAME>.encodedKubeconfig}
+      plugin: "e2e"
+      mode: "quick"
+  dependsOn: []
+  resources: [<CLUSTER-NAME>-instances, <CLUSTER-NAME>]
+---  
+apiVersion: testsys.system/v1
+kind: Test
+metadata:
+  name: <CLUSTER-NAME>-test-2-migrate
+  namespace: testsys
+spec:
+  agent:
+    configuration:
+      awsRegion: <AWS-REGION>
+      instanceIds: ${<CLUSTER-NAME>-instances.ids}
+      migrateToVersion: <UPGRADE-VERSION>
+      tufRepo:
+        metadataUrl: <METADATA-URL>
+        targetsUrl: <TARGETS-URL>
+      assumeRole: <ASSUME-ROLE>
+    image: <MIGRATION-TEST-AGENT-IMAGE-URI>
+    name: migration-test-agent
+    keepRunning: true
+  resources: [<CLUSTER-NAME>-instances, <CLUSTER-NAME>]
+  dependsOn: [<CLUSTER-NAME>-test-1-initial]
+---
+apiVersion: testsys.system/v1
+kind: Test
+metadata:
+  name: <CLUSTER-NAME>-test-3-migrated
+  namespace: testsys
+spec:
+  agent:
+    name: sonobuoy-test-agent
+    image: <SONOBUOY-TEST-AGENT-IMAGE-URI>
+    keepRunning: true
+    configuration:
+      region: ${<CLUSTER-NAME>.region}
+      subnets: ${<CLUSTER-NAME>.publicSubnetIds}
+      assumeRole: <ASSUME-ROLE>
+      kubeconfigBase64: ${<CLUSTER-NAME>.encodedKubeconfig}
+      plugin: "e2e"
+      mode: "quick"
+  dependsOn: [<CLUSTER-NAME>-test-2-migrate]
+  resources: [<CLUSTER-NAME>-instances, <CLUSTER-NAME>]
+---
+apiVersion: testsys.system/v1
+kind: Test
+metadata:
+  name: <CLUSTER-NAME>-test-4-migrate
+  namespace: testsys
+spec:
+  agent:
+    configuration:
+      awsRegion: <AWS-REGION>
+      instanceIds: ${<CLUSTER-NAME>-instances.ids}
+      migrateToVersion: <STARTING-VERSION>
+      tufRepo:
+        metadataUrl: <METADATA-URL>
+        targetsUrl: <TARGETS-URL>
+      assumeRole: <ASSUME-ROLE>
+    image: <MIGRATION-TEST-AGENT-IMAGE-URI>
+    name: migration-test-agent
+    keepRunning: true
+  resources: [<CLUSTER-NAME>-instances, <CLUSTER-NAME>]
+  dependsOn: [<CLUSTER-NAME>-test-3-migrated]
+---
+apiVersion: testsys.system/v1
+kind: Test
+metadata:
+  name: <CLUSTER-NAME>-test-5-final
+  namespace: testsys
+spec:
+  agent:
+    name: sonobuoy-test-agent
+    image: <SONOBUOY-TEST-AGENT-IMAGE-URI>
+    keepRunning: true
+    configuration:
+      region: ${<CLUSTER-NAME>.region}
+      subnets: ${<CLUSTER-NAME>.publicSubnetIds}
+      assumeRole: <ASSUME-ROLE>
+      kubeconfigBase64: ${<CLUSTER-NAME>.encodedKubeconfig}
+      plugin: "e2e"
+      mode: "quick"
+  dependsOn: [<CLUSTER-NAME>-test-4-migrate]
+  resources: [<CLUSTER-NAME>-instances, <CLUSTER-NAME>]
+---
+apiVersion: testsys.system/v1
+kind: Resource
+metadata:
+  name: <CLUSTER-NAME>
+  namespace: testsys
+spec:
+  agent:
+    name: eks-provider
+    image: <EKS-RESOURCE-AGENT-IMAGE-URI>
+    keepRunning: true
+    configuration:
+      creationPolicy: ifNotExists
+      cluster_name: <CLUSTER-NAME>
+      region: <AWS-REGION>
+      assumeRole: <ASSUME-ROLE>
+  dependsOn: []
+  destructionPolicy: onDeletion
+---
+apiVersion: testsys.system/v1
+kind: Resource
+metadata:
+  name: <CLUSTER-NAME>-instances
+  namespace: testsys
+spec:
+  agent:
+    name: ec2-provider
+    image: <EC2-RESOURCE-AGENT-IMAGE-URI>
+    keepRunning: true
+    configuration:
+      clusterName: ${<CLUSTER-NAME>.clusterName}
+      clusterType: eks
+      instanceCount: 2
+      instanceProfileArn: ${<CLUSTER-NAME>.iamInstanceProfileArn}
+      nodeAmi: <BOTTLEROCKET-AMI-ID>
+      region: <AWS-REGION>
+      subnetIds: ${<CLUSTER-NAME>.publicSubnetIds}
+      instanceTypes: ["m5.large"]
+      assumeRole: <ASSUME-ROLE>
+      endpoint: ${<CLUSTER-NAME>.endpoint}
+      certificate: ${<CLUSTER-NAME>.certificate}
+      clusterDnsIp: ${<CLUSTER-NAME>.clusterDnsIp}
+      securityGroups: ${<CLUSTER-NAME>.securityGroups}
+  dependsOn: [<CLUSTER-NAME>]
+  destructionPolicy: onDeletion

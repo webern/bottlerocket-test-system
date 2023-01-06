@@ -1,0 +1,63 @@
+apiVersion: testsys.system/v1
+kind: Test
+metadata:
+  name: <CLUSTER-NAME>-test
+  namespace: testsys
+spec:
+  agent:
+    name: ecs-test-agent
+    image: <ECS-TEST-AGENT-IMAGE-URI>
+    keepRunning: true
+    configuration:
+      clusterName: ${<CLUSTER-NAME>.clusterName}
+      region: ${<CLUSTER-NAME>.region}
+      subnets: ${<CLUSTER-NAME>.publicSubnetIds}
+      assumeRole: <ASSUME-ROLE>
+    secrets:
+      awsCredentials: aws-creds
+  dependsOn: []
+  resources: [<CLUSTER-NAME>-instances, <CLUSTER-NAME>]
+---
+apiVersion: testsys.system/v1
+kind: Resource
+metadata:
+  name: <CLUSTER-NAME>
+  namespace: testsys
+spec:
+  agent:
+    name: ecs-provider
+    image: <ECS-RESOURCE-AGENT-IMAGE-URI>
+    keepRunning: true
+    configuration:
+      clusterName: <CLUSTER-NAME>
+      region: <AWS-REGION>
+      assumeRole: <ASSUME-ROLE>
+    secrets:
+      awsCredentials: aws-creds
+  dependsOn: []
+  destructionPolicy: onDeletion
+---
+apiVersion: testsys.system/v1
+kind: Resource
+metadata:
+  name: <CLUSTER-NAME>-instances
+  namespace: testsys
+spec:
+  agent:
+    name: ec2-provider
+    image: <EC2-RESOURCE-AGENT-IMAGE-URI>
+    keepRunning: true
+    configuration:
+      clusterName: ${<CLUSTER-NAME>.clusterName}
+      clusterType: ecs
+      instanceCount: 2
+      nodeAmi: <BOTTLEROCKET-AMI-ID>
+      region: <AWS-REGION>
+      instanceProfileArn: ${<CLUSTER-NAME>.iamInstanceProfileArn}
+      subnetIds: ${<CLUSTER-NAME>.publicSubnetIds}
+      instanceTypes: ["m5.large"]
+      assumeRole: <ASSUME-ROLE>
+    secrets:
+      awsCredentials: aws-creds
+  dependsOn: [<CLUSTER-NAME>]
+  destructionPolicy: onDeletion

@@ -1,0 +1,82 @@
+apiVersion: testsys.system/v1
+kind: Test
+metadata:
+  name: <CLUSTER-NAME>-test
+  namespace: testsys
+spec:
+  agent:
+    name: sonobuoy-test-agent
+    image: <SONOBUOY-TEST-AGENT-IMAGE-URI>
+    keepRunning: true
+    configuration:
+      assumeRole: <ASSUME-ROLE>
+      kubeconfigBase64: ${<CLUSTER-NAME>.encodedKubeconfig}
+      plugin: "e2e"
+      mode: <SONOBUOY-MODE>
+    secrets:
+      vsphereCredentials: vsphere-creds
+  dependsOn: []
+  resources: [<CLUSTER-NAME>-vms, <CLUSTER-NAME>]
+---
+apiVersion: testsys.system/v1
+kind: Resource
+metadata:
+  name: <CLUSTER-NAME>
+  namespace: testsys
+spec:
+  agent:
+    name: agent
+    image: <VSPHERE-K8S-CLUSTER-RESOURCE-AGENT-IMAGE-URI>
+    keepRunning: true
+    configuration:
+      controlPlaneEndpointIp: <CONTROL-PLANE-ENDPOINT-IP>
+      creationPolicy: ifNotExists
+      mgmtClusterKubeconfigBase64: <MGMT-CLUSTER-KUBECONFIG-BASE64>
+      name: <CLUSTER-NAME>
+      ovaName: <OVA-NAME>
+      tufRepo:
+        metadataUrl: <METADATA-URL>
+        targetsUrl: <TARGETS-URL>
+      version: <K8S-VERSION>
+      vcenterDatacenter: <VCENTER-DATACENTER>
+      vcenterDatastore: <VCENTER-DATASTORE>
+      vcenterHostUrl: <VCENTER-HOST-URL>
+      vcenterNetwork: <VCENTER-NETWORK>
+      vcenterResourcePool: <VCENTER-RESOURCE-POOL>
+      vcenterWorkloadFolder: <VCENTER-WORKLOAD-FOLDER>
+    secrets:
+      vsphereCredentials: vsphere-creds
+  dependsOn: []
+  destructionPolicy: onDeletion
+---
+apiVersion: testsys.system/v1
+kind: Resource
+metadata:
+  name: <CLUSTER-NAME>-vms
+  namespace: testsys
+spec:
+  agent:
+    name: agent
+    image: <VSPHERE-VM-RESOURCE-AGENT-IMAGE-URI>
+    keepRunning: true
+    configuration:
+      assumeRole: <ASSUME-ROLE>
+      cluster:
+        controlPlaneEndpointIp: "${<CLUSTER-NAME>.endpoint}"
+        kubeconfigBase64: "${<CLUSTER-NAME>.encodedKubeconfig}"
+        name: "${<CLUSTER-NAME>.clusterName}"
+      ovaName: <OVA-NAME>
+      tufRepo:
+        metadataUrl: <METADATA-URL>
+        targetsUrl: <TARGETS-URL>
+      vcenterDatacenter: <VCENTER-DATACENTER>
+      vcenterDatastore: <VCENTER-DATASTORE>
+      vcenterHostUrl: <VCENTER-HOST-URL>
+      vcenterNetwork: <VCENTER-NETWORK>
+      vcenterResourcePool: <VCENTER-RESOURCE-POOL>
+      vcenterWorkloadFolder: <VCENTER-WORKLOAD-FOLDER>
+      vmCount: 2
+    secrets:
+      vsphereCredentials: vsphere-creds
+  dependsOn: [<CLUSTER-NAME>]
+  destructionPolicy: onDeletion
