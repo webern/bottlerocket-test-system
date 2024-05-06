@@ -1,6 +1,7 @@
 use agent_utils::base64_decode_write_file;
 use bottlerocket_agents::clusters::{
-    install_eks_a_binary, retrieve_workload_cluster_kubeconfig, write_validate_mgmt_kubeconfig,
+    download_eks_a_bundle, install_eks_a_binary, retrieve_workload_cluster_kubeconfig,
+    write_validate_mgmt_kubeconfig,
 };
 use bottlerocket_agents::constants::TEST_CLUSTER_KUBECONFIG_PATH;
 use bottlerocket_agents::is_cluster_creation_required;
@@ -147,9 +148,16 @@ impl Create for VSphereK8sClusterCreator {
             .context(resources, "Error sending cluster creation message")?;
 
         let mgmt_kubeconfig_path = format!("{}/mgmt.kubeconfig", WORKING_DIR);
+        let bundle_manifest_path = format!("{}/bundles.yaml", WORKING_DIR);
         let encoded_kubeconfig = if do_create {
             install_eks_a_binary(&spec.configuration.eks_a_release_manifest_url, &resources)
                 .await?;
+            download_eks_a_bundle(
+                &spec.configuration.eks_a_release_manifest_url,
+                &bundle_manifest_path,
+                &resources,
+            )
+            .await?;
 
             info!("Creating cluster");
             memo.current_status = "Creating cluster".to_string();
@@ -166,6 +174,7 @@ impl Create for VSphereK8sClusterCreator {
             create_vsphere_k8s_cluster(
                 &spec.configuration,
                 &mgmt_kubeconfig_path,
+                &bundle_manifest_path,
                 &mut resources,
                 &mut memo,
             )
@@ -237,6 +246,7 @@ async fn does_cluster_exist(config: &VSphereK8sClusterConfig) -> ProviderResult<
 async fn create_vsphere_k8s_cluster(
     config: &VSphereK8sClusterConfig,
     mgmt_kubeconfig_path: &str,
+    bundle_manifest_path: &str,
     resources: &mut Resources,
     memo: &mut ProductionMemo,
 ) -> ProviderResult<()> {
@@ -434,6 +444,7 @@ async fn create_vsphere_k8s_cluster(
     let status = Command::new("eksctl")
         .args(["anywhere", "create", "cluster"])
         .args(["--kubeconfig", mgmt_kubeconfig_path])
+        .args(["--bundles-override", bundle_manifest_path])
         .args(["-f", &clusterspec_path])
         .args(["-v", "4"])
         .stdout(Stdio::inherit())
@@ -672,6 +683,7 @@ impl Destroy for VSphereK8sClusterDestroyer {
         memo.vm_template = "".to_string();
 
         let mgmt_kubeconfig_path = format!("{}/mgmt.kubeconfig", WORKING_DIR);
+        let bundle_manifest_path = format!("{}/bundle.yaml", WORKING_DIR);
         debug!("Decoding and writing out kubeconfig for the CAPI management cluster");
         base64_decode_write_file(
             &spec.configuration.mgmt_cluster_kubeconfig_base64,
@@ -684,6 +696,12 @@ impl Destroy for VSphereK8sClusterDestroyer {
         )?;
 
         install_eks_a_binary(&spec.configuration.eks_a_release_manifest_url, &resources).await?;
+        download_eks_a_bundle(
+            &spec.configuration.eks_a_release_manifest_url,
+            &bundle_manifest_path,
+            &resources,
+        )
+        .await?;
 
         // For cluster deletion, EKS-A needs the workload cluster's kubeconfig at
         // './${CLUSTER_NAME}/${CLUSTER_NAME}-eks-a-cluster.kubeconfig'
@@ -728,6 +746,7 @@ impl Destroy for VSphereK8sClusterDestroyer {
         let status = Command::new("eksctl")
             .args(["anywhere", "delete", "cluster"])
             .args(["--kubeconfig", &mgmt_kubeconfig_path])
+            .args(["--bundles-override", &bundle_manifest_path])
             .arg(spec.configuration.name)
             .args(["-v", "4"])
             .stdout(Stdio::inherit())
