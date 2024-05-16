@@ -10,6 +10,7 @@ use serde::Deserialize;
 use std::convert::TryFrom;
 use std::env;
 use std::fmt::Display;
+use std::fs::File;
 use std::path::PathBuf;
 
 /// Write out and check CAPI management cluster is accessible and valid
@@ -74,30 +75,7 @@ pub async fn get_eks_a_archive_url<S>(
 where
     S: AsRef<str> + IntoUrl + Display,
 {
-    let manifest = reqwest::get(eks_a_release_manifest_url.to_string())
-        .await
-        .context(
-            resources,
-            format!(
-                "Unable to request EKS-A release manifest '{}'",
-                eks_a_release_manifest_url
-            ),
-        )?
-        .text()
-        .await
-        .context(
-            resources,
-            format!(
-                "Unable to retrieve EKS-A release manifest at '{}'",
-                eks_a_release_manifest_url
-            ),
-        )?;
-    let deserialized_manifest = serde_yaml::Deserializer::from_str(&manifest)
-        .map(|config| {
-            serde_yaml::Value::deserialize(config)
-                .context(resources, "Unable to deserialize eksa config file")
-        })
-        .collect::<ProviderResult<Vec<_>>>()?;
+    let deserialized_manifest = get_eks_a_manifest(eks_a_release_manifest_url, resources).await?;
 
     let latest_release_version = deserialized_manifest
         .iter()
@@ -139,6 +117,53 @@ where
             resources,
             format!(
                 "Unable to get the URL for the latest EKS-A version ({})",
+                latest_release_version
+            ),
+        )
+        .map(|s| s.to_string())
+}
+
+pub async fn get_eks_a_bundle_url<S>(
+    eks_a_release_manifest_url: S,
+    resources: &Resources,
+) -> ProviderResult<String>
+where
+    S: AsRef<str> + IntoUrl + Display,
+{
+    let deserialized_manifest = get_eks_a_manifest(eks_a_release_manifest_url, resources).await?;
+
+    let latest_release_version = deserialized_manifest
+        .iter()
+        .find(|config| {
+            config.get("kind") == Some(&serde_yaml::Value::String("Release".to_string()))
+        })
+        .and_then(|release| release.get("spec"))
+        .and_then(|spec| spec.get("latestVersion"))
+        .and_then(|ver| ver.as_str())
+        .context(resources, "Unable to get latest version for EKS-A")?;
+
+    deserialized_manifest
+        .iter()
+        .find(|manifests| {
+            manifests.get("kind") == Some(&serde_yaml::Value::String("Release".to_string()))
+        })
+        .and_then(|manifest| manifest.get("spec"))
+        .and_then(|spec| spec.get("releases"))
+        .and_then(|list| list.as_sequence())
+        .and_then(|releases| {
+            releases.iter().find(|release| {
+                release.get("version")
+                    == Some(&serde_yaml::Value::String(
+                        latest_release_version.to_string(),
+                    ))
+            })
+        })
+        .and_then(|release| release.get("bundleManifestUrl"))
+        .and_then(|uri| uri.as_str())
+        .context(
+            resources,
+            format!(
+                "Unable to get the bundle URL for the latest EKS-A version ({})",
                 latest_release_version
             ),
         )
@@ -195,4 +220,72 @@ pub async fn install_eks_a_binary(
     let eks_a_archive_url = get_eks_a_archive_url(eks_a_release_manifest_url, resources).await?;
     info!("Fetching EKS-A binary archive from '{}'", eks_a_archive_url);
     fetch_eks_a_binary(eks_a_archive_url, PathBuf::from(USR_LOCAL_BIN), resources).await
+}
+
+pub async fn download_eks_a_bundle(
+    eks_a_release_manifest_url: &Option<String>,
+    bundle_manifest_path: &str,
+    resources: &Resources,
+) -> ProviderResult<()> {
+    let eks_a_release_manifest_url = eks_a_release_manifest_url
+        .to_owned()
+        .unwrap_or(DEFAULT_EKS_A_RELEASE_MANIFEST.to_string());
+    info!(
+        "Using EKS-A release manifest '{}'",
+        eks_a_release_manifest_url
+    );
+    let eks_a_bundle_url = get_eks_a_bundle_url(eks_a_release_manifest_url, resources).await?;
+    info!(
+        "Downloading EKS-A bundle manifest file from '{}'",
+        eks_a_bundle_url
+    );
+    let mut bundle_manifest_request = reqwest::blocking::get(eks_a_bundle_url.as_str())
+        .context(resources, "Could not send HTTP GET request for bundle.yaml")?
+        .error_for_status()
+        .context(
+            Resources::Clear,
+            "Bad HTTP response when downloading bundle.yaml",
+        )?;
+    let mut f = File::create(bundle_manifest_path)
+        .context(resources, "Failed to create bundle.yaml file")?;
+    bundle_manifest_request
+        .copy_to(&mut f)
+        .context(Resources::Clear, "Failed to copy bundle.yaml to file")?;
+
+    Ok(())
+}
+
+async fn get_eks_a_manifest<S>(
+    eks_a_release_manifest_url: S,
+    resources: &Resources,
+) -> ProviderResult<Vec<serde_yaml::Value>>
+where
+    S: AsRef<str> + IntoUrl + Display,
+{
+    let manifest = reqwest::get(eks_a_release_manifest_url.to_string())
+        .await
+        .context(
+            resources,
+            format!(
+                "Unable to request EKS-A release manifest '{}'",
+                eks_a_release_manifest_url
+            ),
+        )?
+        .text()
+        .await
+        .context(
+            resources,
+            format!(
+                "Unable to retrieve EKS-A release manifest at '{}'",
+                eks_a_release_manifest_url
+            ),
+        )?;
+    let deserialized_manifest = serde_yaml::Deserializer::from_str(&manifest)
+        .map(|config| {
+            serde_yaml::Value::deserialize(config)
+                .context(resources, "Unable to deserialize eksa config file")
+        })
+        .collect::<ProviderResult<Vec<_>>>()?;
+
+    Ok(deserialized_manifest)
 }

@@ -27,7 +27,8 @@ use agent_utils::aws::aws_config;
 use agent_utils::base64_decode_write_file;
 use agent_utils::ssm::{create_ssm_activation, ensure_ssm_service_role, wait_for_ssm_ready};
 use bottlerocket_agents::clusters::{
-    install_eks_a_binary, retrieve_workload_cluster_kubeconfig, write_validate_mgmt_kubeconfig,
+    download_eks_a_bundle, install_eks_a_binary, retrieve_workload_cluster_kubeconfig,
+    write_validate_mgmt_kubeconfig,
 };
 use bottlerocket_types::agent_config::{
     CustomUserData, MetalK8sClusterConfig, AWS_CREDENTIALS_SECRET_NAME,
@@ -168,6 +169,7 @@ impl Create for MetalK8sClusterCreator {
         )?;
 
         let mgmt_kubeconfig_path = format!("{}/mgmt.kubeconfig", WORKING_DIR);
+        let bundle_manifest_path = format!("{}/bundles.yaml", WORKING_DIR);
         let eksa_config_path = format!("{}/cluster.yaml", WORKING_DIR);
         let hardware_csv_path = format!("{}/hardware.csv", WORKING_DIR);
         base64_decode_write_file(&spec.configuration.hardware_csv_base64, &hardware_csv_path)
@@ -234,6 +236,12 @@ impl Create for MetalK8sClusterCreator {
         )?;
 
         install_eks_a_binary(&spec.configuration.eks_a_release_manifest_url, &resources).await?;
+        download_eks_a_bundle(
+            &spec.configuration.eks_a_release_manifest_url,
+            &bundle_manifest_path,
+            &resources,
+        )
+        .await?;
 
         info!("Creating cluster");
         memo.current_status = "Creating cluster".to_string();
@@ -252,6 +260,7 @@ impl Create for MetalK8sClusterCreator {
         let status = Command::new("eksctl")
             .args(["anywhere", "create", "cluster"])
             .args(["--kubeconfig", &mgmt_kubeconfig_path])
+            .args(["--bundles-override", &bundle_manifest_path])
             .args(["-f", &eksa_config_path])
             .args(["--hardware-csv", &hardware_csv_path])
             .arg("--skip-ip-check")
@@ -529,6 +538,7 @@ impl Destroy for MetalK8sClusterDestroyer {
 
         // Set the cluster deletion configs paths
         let mgmt_kubeconfig_path = format!("{}/mgmt.kubeconfig", WORKING_DIR);
+        let bundle_manifest_path = format!("{}/bundle.yaml", WORKING_DIR);
         let eksa_config_path = format!("{}/cluster.yaml", WORKING_DIR);
         let workload_kubeconfig_path =
             format!("{}/{}-eks-a-cluster.kubeconfig", WORKING_DIR, cluster_name);
@@ -539,6 +549,12 @@ impl Destroy for MetalK8sClusterDestroyer {
             .configuration;
 
         install_eks_a_binary(&configuration.eks_a_release_manifest_url, &resources).await?;
+        download_eks_a_bundle(
+            &configuration.eks_a_release_manifest_url,
+            &bundle_manifest_path,
+            &resources,
+        )
+        .await?;
 
         base64_decode_write_file(
             &configuration.mgmt_cluster_kubeconfig_base64,
@@ -578,6 +594,7 @@ impl Destroy for MetalK8sClusterDestroyer {
         let status = Command::new("eksctl")
             .args(["anywhere", "delete", "cluster"])
             .args(["--kubeconfig", &mgmt_kubeconfig_path])
+            .args(["--bundles-override", &bundle_manifest_path])
             .args(["-f", &eksa_config_path])
             .args(["--w-config", &workload_kubeconfig_path])
             .args(["-v", "4"])
