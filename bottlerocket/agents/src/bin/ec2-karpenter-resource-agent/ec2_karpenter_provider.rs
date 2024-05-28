@@ -28,7 +28,7 @@ use std::time::Duration;
 use testsys_model::{Configuration, SecretName};
 use tokio::fs::read_to_string;
 
-const KARPENTER_VERSION: &str = "v0.33.1";
+const KARPENTER_VERSION: &str = "0.36.1";
 const CLUSTER_KUBECONFIG: &str = "/local/cluster.kubeconfig";
 const PROVISIONER_YAML: &str = "/local/provisioner.yaml";
 const TAINTED_NODEGROUP_NAME: &str = "tainted-nodegroup";
